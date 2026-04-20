@@ -24,7 +24,7 @@ type MetricMatch struct {
 	Tag         map[string][]string `toml:"tag"`
 	FieldFilter map[string][]string `toml:"field_filter"`
 	Approach    map[string]string   `toml:"approach"`
-	TagExclude  map[string][]string `toml:"tag_exclude"`
+	ExcludeTags map[string][]string `toml:"exclude_tags"`
 	Log         telegraf.Logger
 }
 
@@ -152,13 +152,22 @@ func (m *MetricMatch) Apply(in ...telegraf.Metric) []telegraf.Metric {
 			}
 		}
 
-		// tag_exclude: remove specified tags by measurement name
-		if len(m.TagExclude) > 0 {
-			excludeTags, ok := m.TagExclude[eachMetric.Name()]
-			if ok {
-				for _, tagKey := range excludeTags {
-					eachMetric.RemoveTag(tagKey)
-				}
+		// exclude_tags: remove specified keys (fields or tags) by measurement name.
+		// Use "*" as a wildcard key to apply exclusion to all measurements.
+		m.Log.Debugf("exclude_tags map len=%d, metric name=%q", len(m.ExcludeTags), eachMetric.Name())
+		if len(m.ExcludeTags) > 0 {
+			// collect keys to remove: wildcard first, then measurement-specific
+			keysToRemove := make([]string, 0)
+			if globalKeys, ok := m.ExcludeTags["*"]; ok {
+				keysToRemove = append(keysToRemove, globalKeys...)
+			}
+			if specificKeys, ok := m.ExcludeTags[eachMetric.Name()]; ok {
+				keysToRemove = append(keysToRemove, specificKeys...)
+			}
+			m.Log.Debugf("exclude_tags keys to remove: %v", keysToRemove)
+			for _, key := range keysToRemove {
+				eachMetric.RemoveTag(key)
+				eachMetric.RemoveField(key)
 			}
 		}
 
