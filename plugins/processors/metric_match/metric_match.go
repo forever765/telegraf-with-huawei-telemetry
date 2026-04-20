@@ -24,6 +24,7 @@ type MetricMatch struct {
 	Tag         map[string][]string `toml:"tag"`
 	FieldFilter map[string][]string `toml:"field_filter"`
 	Approach    map[string]string   `toml:"approach"`
+	TagExclude  map[string][]string `toml:"tag_exclude"`
 	Log         telegraf.Logger
 }
 
@@ -150,6 +151,17 @@ func (m *MetricMatch) Apply(in ...telegraf.Metric) []telegraf.Metric {
 				}
 			}
 		}
+
+		// tag_exclude: remove specified tags by measurement name
+		if len(m.TagExclude) > 0 {
+			excludeTags, ok := m.TagExclude[eachMetric.Name()]
+			if ok {
+				for _, tagKey := range excludeTags {
+					eachMetric.RemoveTag(tagKey)
+				}
+			}
+		}
+
 		res = append(res, eachMetric)
 	}
 
