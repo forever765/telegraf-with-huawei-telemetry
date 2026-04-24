@@ -229,8 +229,10 @@ func (c *HuaweiTelemetryDialout) DataPublish(stream dialout.GRPCDataservice_Data
 			c.Log.Debugf("data gpb %s", hex.EncodeToString(packet.GetData()))
 			metrics, errParse = parseGPB.Parse(packet.GetData())
 			if errParse != nil {
-				c.acc.AddError(errParse)
-				return fmt.Errorf("error when parse grpc stream: %w", errParse)
+				// Don't close the whole gRPC stream on a single unknown/unsupported protoPath.
+				// Just record error and keep consuming subsequent messages.
+				c.acc.AddError(fmt.Errorf("error when parse grpc stream: %w", errParse))
+				continue
 			}
 		}
 		// json encoding
@@ -238,8 +240,8 @@ func (c *HuaweiTelemetryDialout) DataPublish(stream dialout.GRPCDataservice_Data
 			c.Log.Debugf("data str %s", packet.GetDataJson())
 			metrics, errParse = parseJSON.Parse([]byte(packet.GetDataJson()))
 			if errParse != nil {
-				c.acc.AddError(errParse)
-				return fmt.Errorf("error when parse grpc stream: %w", errParse)
+				c.acc.AddError(fmt.Errorf("error when parse grpc stream: %w", errParse))
+				continue
 			}
 		}
 		for _, metric := range metrics {
